@@ -1,6 +1,6 @@
 #include <Timezone_Generic.h>
 
-TimeChangeRule usCDT = {"CDT", Second, Sun, Mar, 2, -300}; 
+TimeChangeRule usCDT = {"CDT", Second, Sun, Mar, 2, -300};
 TimeChangeRule usCST = {"CST", First, Sun, Nov, 2, -360};
 Timezone usCentral(usCDT, usCST);
 
@@ -46,9 +46,9 @@ String format_offset(int offset) {
   offset_suffix += format_digits(offset_hours);
 
   offset_suffix += ":";
- 
+
   int offset_minutes = abs(offset) % 60;
   offset_suffix += format_digits(offset_minutes);
-  
+
   return offset_suffix;
 }

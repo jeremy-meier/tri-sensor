@@ -42,9 +42,9 @@ String humidity_disc_payload;
 unsigned long last_update_ms = 0;
 unsigned long update_interval_ms = 60000;
 
-void setup(){
-  setRgbLed(0xFF,0xFF,0x0);
-  
+void setup() {
+  setRgbLed(0xFF, 0xFF, 0x0);
+
   Serial.begin(9600);
   delay(3000);
   Serial.println();
@@ -63,9 +63,9 @@ void setup(){
   ntpClockUpdate();
   syncClockToRtc();
   mqttConnect();
-  
+
   // Systems go.
-  setRgbLed(0,0xFF,0);
+  setRgbLed(0, 0xFF, 0);
 
   dht.begin();
 }
@@ -80,12 +80,12 @@ void loop() {
 
   if (millis() - last_update_ms > update_interval_ms) {
     last_update_ms = millis();
-    
+
     StaticJsonDocument<200> doc;
     doc["time"] = iso8601_date();
     doc["temperature"] = dht.readTemperature();
     doc["humidity"] = dht.readHumidity();
-  
+
     String msg;
     serializeJson(doc, msg);
     mqtt.publish(state_topic, msg);
@@ -131,7 +131,7 @@ bool wifiConnect() {
   }
 
   if (WiFi.status() != WL_CONNECTED) {
-    setRgbLed(0xFF,0x0,0x0);
+    setRgbLed(0xFF, 0x0, 0x0);
     Serial.println("Failed");
     return false;
   }
@@ -166,7 +166,7 @@ void syncClockToRtc() {
 
 bool mqttConnect() {
   Serial.print("Connecting to messaging server..");
-  
+
   mqtt.begin(MQTT_HOST, MQTT_PORT, net);
   mqtt.setKeepAlive(300);
   mqtt.setWill(availability_topic, "offline", true, 1);
@@ -189,7 +189,7 @@ bool mqttConnect() {
 
   mqttPublishDiscovery();
   mqtt.publish(availability_topic, "online", true, 1);
-  
+
   return true;
 }
 
@@ -198,7 +198,7 @@ void mqttPublishDiscovery() {
     Serial.println("Can't publish discovery because mqtt isn't connected.");
     return;
   }
-  
+
   mqtt.publish(temperature_config_topic, temperature_disc_payload, true, 1);
   mqtt.publish(humidity_config_topic, humidity_disc_payload, true, 1);
 }
@@ -207,7 +207,7 @@ void buildTopicNames() {
   strcat(temperature_config_topic, "homeassistant/sensor/logger_");
   strcat(temperature_config_topic, clientId);
   strcat(temperature_config_topic, "_t/config");
-  
+
   strcat(humidity_config_topic, "homeassistant/sensor/logger_");
   strcat(humidity_config_topic, clientId);
   strcat(humidity_config_topic, "_h/config");
@@ -236,14 +236,14 @@ void buildDiscoveryPayloads() {
   temperature_doc["uniq_id"] = sensor_id_t; //unique_id
   JsonObject temperature_dev = temperature_doc.createNestedObject("dev"); //device
   temperature_dev["name"] = "Logger"; //name
-  temperature_dev["mf"] = "Jeremy Meier"; //manufacturer 
-  temperature_dev["mdl"] = "Tri-Sensor"; //model 
+  temperature_dev["mf"] = "Jeremy Meier"; //manufacturer
+  temperature_dev["mdl"] = "Tri-Sensor"; //model
   temperature_dev["sw"] = FW_VERSION; //sw_version
   JsonArray temperature_ids = temperature_dev.createNestedArray("ids"); //identifiers
   temperature_ids.add(clientId);
 
   serializeJson(temperature_doc, temperature_disc_payload);
-  
+
   Serial.println("Temperature discovery:");
   Serial.println(temperature_disc_payload);
 
@@ -258,8 +258,8 @@ void buildDiscoveryPayloads() {
   humidity_doc["uniq_id"] = sensor_id_h; //unique_id
   JsonObject humidity_dev = humidity_doc.createNestedObject("dev"); //device
   humidity_dev["name"] = "Logger"; //name
-  humidity_dev["mf"] = "Jeremy Meier"; //manufacturer 
-  humidity_dev["mdl"] = "Tri-Sensor"; //model 
+  humidity_dev["mf"] = "Jeremy Meier"; //manufacturer
+  humidity_dev["mdl"] = "Tri-Sensor"; //model
   humidity_dev["sw"] = FW_VERSION; //sw_version
   JsonArray humidity_ids = humidity_dev.createNestedArray("ids"); //identifiers
   humidity_ids.add(clientId);
