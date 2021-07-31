@@ -12,10 +12,17 @@
 
 #include "config.h"
 
-#define DHT_PIN 7
-#define DHT_TYPE DHT22
+// The current consumption of both the DHT22 and the photoresistor circuit is less than 1mA, well
+// below the max of the Digital IO pins. Use Digital IO pins to power these only when necessary to 
+// conserve power.
+#define DHT22_PWR 0
+#define PHOTORES_PWR 1
 
-#define FW_VERSION "0.1.0"
+#define DHT_TYPE DHT22
+#define DHT_INPUT 7
+#define PHOTORES_INPUT A1
+
+#define FW_VERSION "0.1.1"
 
 RTCZero rtc = RTCZero();
 
@@ -24,7 +31,7 @@ WiFiClient net = WiFiClient();
 
 NTPClient ntp = NTPClient(ntpUDP, "us.pool.ntp.org");
 MQTTClient mqtt = MQTTClient(512);
-DHT dht(DHT_PIN, DHT_TYPE);
+DHT dht(DHT_INPUT, DHT_TYPE);
 
 char clientId[13];
 
@@ -51,7 +58,7 @@ unsigned long update_interval_ms = 5 * 60 * 1000; // 5 minutes
 
 int BAT_MIN_MV = 3200;
 int BAT_MAX_MV = 4100;
-float DIVIDER_RATIO = (1200 + 330) / 1200 // From MKR1010 Schematic -> See R8 & R9
+float DIVIDER_RATIO = (1200.0 + 330.0) / 1200.0; // From MKR1010 Schematic -> See R8 & R9
 int ADC_REF_VOLTAGE = 3300;
 
 Battery battery(BAT_MIN_MV, BAT_MAX_MV, ADC_BATTERY);
@@ -63,6 +70,10 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
+
+  pinMode(DHT22_PWR,OUTPUT);
+  pinMode(PHOTORES_PWR,OUTPUT);
+  sensorPwrDisable();
 
   Serial.print("WiFi Firmware: ");
   Serial.println(WiFi.firmwareVersion());
@@ -94,13 +105,17 @@ void setup() {
 
 void loop() {
   digitalWrite(LED_BUILTIN, HIGH);
-  
-  battery = Battery(BAT_MIN_MV, BAT_MAX_MV, ADC_BATTERY);
+
   battery.begin(ADC_REF_VOLTAGE, DIVIDER_RATIO, &sigmoidal);
   
   mqtt.loop();
 
+  sensorPwrEnable();
+  
   if (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(NINA_RESETN, LOW);
+    // Based on value here: https://www.element14.com/community/community/project14/iot-in-the-cloud/blog/2019/05/27/the-windchillator-reducing-the-sleep-current-of-the-arduino-mkr-wifi-1010-to-800-ua
+    delay(2600);
     wifiConnect();
   }
   
@@ -110,12 +125,12 @@ void loop() {
 
   if (mqtt.connected()) {
     syncClockToRtc();
-    
+
     dht.begin();
     
     StaticJsonDocument<200> doc;
     
-    int illum_val = 100 * analogRead(A1) / 1023;
+    int illum_val = 100 * analogRead(PHOTORES_INPUT) / 1023;
     char ill_str[6];
     
     dtostrf(illum_val, 5, 1, ill_str);
@@ -131,12 +146,28 @@ void loop() {
     mqtt.publish(state_topic, msg);
     Serial.print("Publishing message: ");
     Serial.println(msg);
+
+    delay(5000);
   }
 
   wifiDisconnect();
+
+  // Turn off power to DHT22 and light sensor 
+  sensorPwrDisable();
+  
   digitalWrite(LED_BUILTIN, LOW);
 
   LowPower.deepSleep(update_interval_ms);
+}
+
+void sensorPwrEnable() {
+  digitalWrite(DHT22_PWR, HIGH);
+  digitalWrite(PHOTORES_PWR, HIGH);
+}
+
+void sensorPwrDisable() {
+  digitalWrite(DHT22_PWR, LOW);
+  digitalWrite(PHOTORES_PWR, LOW);
 }
 
 time_t syncClock() {
@@ -197,6 +228,7 @@ void ntpClockUpdate() {
 
   // Release the NTP session.
   ntp.end();
+  Serial.println("Done!");
 }
 
 void syncClockToRtc() {
