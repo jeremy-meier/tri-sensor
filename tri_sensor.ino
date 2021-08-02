@@ -118,6 +118,10 @@ void loop() {
     delay(2600);
     wifiConnect();
   }
+  else {
+    // If WiFi was already connected, we still need to give the DHT22 time to power up.
+    delay(1000);
+  }
   
   if (WiFi.status() == WL_CONNECTED && !mqtt.connected()) {
     mqttConnect();
@@ -151,6 +155,7 @@ void loop() {
   }
 
   wifiDisconnect();
+  digitalWrite(NINA_RESETN, HIGH);
 
   // Turn off power to DHT22 and light sensor 
   sensorPwrDisable();
