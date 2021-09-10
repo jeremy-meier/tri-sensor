@@ -101,15 +101,10 @@ void TriSensorWiFi::start() {
         if (ap_status == WL_AP_CONNECTED) {
           ap_dns_scan();
           ap_wifi_client_check();
-
-          Serial.print("ap_input_flag zz : ");
-          Serial.println(ap_input_flag);
         }
 
-        delay(2000);
+        delay(500);
       }
-
-      Serial.println("DO I EVER ACTUALLY GET HERE???");
 
       udpap_dns.stop();
       WiFi.end();
@@ -331,9 +326,6 @@ void TriSensorWiFi::ap_dns_scan() {
 
 // Check the AP wifi Client Responses and read the inputs on the main AP web-page.
 void TriSensorWiFi::ap_wifi_client_check() {
-  String current_line = ""; // make a String to hold incoming data from the client
-  char c; // Character read buffer
-  int t, u, v, wifi_ssid_pos, wifi_pass_pos; // loop counter
 
   WiFiClient client = web_server.available();
 
@@ -344,20 +336,28 @@ void TriSensorWiFi::ap_wifi_client_check() {
 
     // If the client has bytes available, begin handling the request.
     if (client.connected() && client.available()) {
-      c = client.read();
-      current_line = "";
+      char c = client.read();
+      char request_line[128];
+      char *req_ptr = &request_line[0];
 
-      // Get the first line containing the HTTP operation and route requested
+      // Get the request line containing the HTTP operation and route requested
       while (c != '\n' && c != '\r') {
-        current_line += c;
+        *req_ptr = c;
+        req_ptr++;
         c = client.read();
       }
 
-      Serial.print("* First line: ");
-      Serial.println(current_line);
+      // End the request_line with a null terminator.
+      *req_ptr = '\0';
+
+      #ifdef DBGON
+      Serial.print("* Request line: ");
+      Serial.println(request_line);
+      #endif
 
       // Now, check the first line with header info and jump to the appropriate route
-      if (current_line.startsWith("GET /hotspot-detect.html")) {
+
+      if (strncmp(request_line, "GET /hotspot-detect.html", 24) == 0) {
         #ifdef DBGON
         Serial.println("* Handling GET /hotspot-detect.html");
         #endif
@@ -365,7 +365,7 @@ void TriSensorWiFi::ap_wifi_client_check() {
         client.println(FORM_HTML);
       }
 
-      else if (current_line.startsWith("GET /generate_204")) {
+      else if (strncmp(request_line, "GET /generate_204", 17) == 0) {
         #ifdef DBGON
         Serial.println("* Handling GET /generate_204");
         #endif
@@ -373,14 +373,15 @@ void TriSensorWiFi::ap_wifi_client_check() {
         client.println(GEN404_HTML);
       }
 
-      else if (current_line.startsWith("POST /checkpass.html")) {
+      else if (strncmp(request_line, "POST /checkpass.html", 20) == 0) {
         #ifdef DBGON
         Serial.println("* Handling POST /checkpass.html");
         #endif
 
-        current_line = "";
+        char current_line[1024];
+        char *current_line_ptr = &current_line[0];
 
-        // The POST request will include multiple lines with headers, followed by an empty line,
+        // The POST request body will include multiple lines with headers, followed by an empty line,
         // followed by a line containing the application/x-www-form-urlencoded parameters.
         // So every time we encounter a newline, clear current_line, then at the end all that
         // is left is the param line.
@@ -393,31 +394,33 @@ void TriSensorWiFi::ap_wifi_client_check() {
             #endif
 
             if (c == '\n') { // if the byte is a newline character
+              *current_line_ptr = '\0';
+              #ifdef DBGON
               Serial.print("* (HTTP Header) ");
               Serial.println(current_line);
-              current_line = ""; // if you got a newline, then clear current_line:
+              #endif
+              current_line_ptr = &current_line[0];
             }
             else if (c != '\r') {
-              current_line += c; // if you got anything except a carriage return character, add to line
+              *current_line_ptr = c;
+              current_line_ptr++;
             }
           }
           else {
             // Done reading from client
             ap_input_flag = 1;
+            *current_line_ptr = '\0';
             break;
           }
         }
 
+        #ifdef DBGON
         Serial.print("* POST body: ");
         Serial.println(current_line);
-
-        int body_len = current_line.length() + 1;
-
-        char post_buffer[body_len];
-        current_line.toCharArray(post_buffer, body_len);
+        #endif
 
         struct yuarel_param params[3];
-        int p = yuarel_parse_query(post_buffer, '&', params, 8);
+        int p = yuarel_parse_query(current_line, '&', params, 8);
 
         bool inputs_valid = true;
         for (int i=0; i<p; i++) {
@@ -457,9 +460,6 @@ void TriSensorWiFi::ap_wifi_client_check() {
           else if (strcmp(params[i].key, "device_name") == 0) {
             url_decode_in_place(params[i].val);
             strcpy(sensor_name, params[i].val);
-
-            Serial.print("device_name from form: ");
-            Serial.println(params[i].val);
           }
         }
 
@@ -491,10 +491,6 @@ void TriSensorWiFi::ap_wifi_client_check() {
     Serial.println("* AP Client not connected, or no bytes were available to read.");
     #endif
   }
-
-  Serial.println("Reached end of ap_wifi_client_check()");
-  Serial.print("ap_input_flag: ");
-  Serial.println(ap_input_flag);
 }
 
 /**
