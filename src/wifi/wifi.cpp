@@ -47,7 +47,10 @@ void TriSensorWiFi::start() {
     }
     else {
       // Attempt to connect if credentials were loaded from flash.
+      #ifdef DBGON
       Serial.println("* Loaded credentials from flash");
+      #endif
+
       while (((wifi_status != WL_CONNECTED) || (WiFi.RSSI() <= -90) || (WiFi.RSSI() == 0)) && conn_attempts < MAXCONNECT) {
 
         #ifdef DBGON
@@ -163,7 +166,10 @@ bool TriSensorWiFi::erase() {
 
 // Shut down the NINA chip
 void TriSensorWiFi::end() {
+  #ifdef DBGON
   Serial.println("* Disconnecting from WiFi network.");
+  #endif
+
   WiFi.disconnect();
   delay(1000);
   WiFi.end();
